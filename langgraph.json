@@ -1,0 +1,6 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "rca": "./langgraph_api.py:create_rca_graph"
+  }
+}

@@ -1,0 +1,10 @@
+.langgraph_api/
+.venv/
+logs/
+reference/
+**/__pycache__/
+data/
+
+
+kubeconfig.yaml
+config.yaml
