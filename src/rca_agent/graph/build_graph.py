@@ -19,8 +19,7 @@ from .nodes import (
     ob_agent_node,
     judge_agent_node,
     generate_report_node,
-    route_after_main_agent,
-    route_after_judge_agent
+    route_after_main_agent
 )
 
 
@@ -53,10 +52,11 @@ def create_rca_graph():
         route_after_main_agent,
         {
             "code_agent": "code_agent",
-            "generate_sop": "generate_sop",  # 版本7.1新增：执行generate_sop
+            "generate_sop": "generate_sop",
             "tool_executor": "tool_executor",
-            "match_sop": "match_sop",  # 新增：执行match_sop
-            "match_observation": "match_observation"  # 新增：执行match_observation
+            "match_sop": "match_sop",
+            "match_observation": "match_observation",
+            "generate_report": "generate_report"  # 版本9：JudgeAgent判定根因后，由MainAgent选择生成报告
         }
     )
 
@@ -80,15 +80,8 @@ def create_rca_graph():
     # 7. ob_agent -> judge_agent
     graph.add_edge("ob_agent", "judge_agent")
 
-    # 8. judge_agent -> (generate_report 或 action_agent) 条件边
-    graph.add_conditional_edges(
-        "judge_agent",
-        route_after_judge_agent,
-        {
-            "generate_report": "generate_report",
-            "action_agent": "action_agent"
-        }
-    )
+    # 8. judge_agent -> action_agent（版本9修复：JudgeAgent只负责评估，不直接终止流程）
+    graph.add_edge("judge_agent", "action_agent")
 
     # 9. generate_report -> 结束
     graph.add_edge("generate_report", END)

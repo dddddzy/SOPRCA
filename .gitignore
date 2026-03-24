@@ -8,3 +8,5 @@ data/
 
 kubeconfig.yaml
 config.yaml
+
+* text=auto eol=lf

@@ -218,9 +218,15 @@ def action_agent_node(state: RCAState) -> Dict[str, Any]:
     print(f"    [ActionAgent]   已生成代码: {'是' if has_code else '否'}", file=sys.stderr)
     print(f"    [ActionAgent]   已执行步骤: {len(executed_steps)}", file=sys.stderr)
 
+    # 版本9修复：从state中提取JudgeAgent判定结果，控制是否加入generate_report动作
+    judge_result = state.get("judge_result", {})
+    is_root_cause_found = judge_result.get("is_root_cause_found", False) if judge_result else False
+    print(f"    [ActionAgent]   JudgeAgent已找到根因: {'是' if is_root_cause_found else '否'}", file=sys.stderr)
+
     candidate_actions = generate_candidate_actions(
         fault_info, matched_sop, executed_steps, current_observation,
-        has_code=has_code, iteration_count=iteration_count
+        has_code=has_code, iteration_count=iteration_count,
+        is_root_cause_found=is_root_cause_found
     )
 
     print(f"    [ActionAgent] 生成完成，共{len(candidate_actions)}个候选动作", file=sys.stderr)
@@ -747,6 +753,8 @@ def route_after_main_agent(state: RCAState) -> str:
         return "match_sop"
     elif action == "match_observation":
         return "match_observation"
+    elif action == "generate_report":
+        return "generate_report"
     else:
         return "tool_executor"
 
@@ -760,13 +768,3 @@ def route_after_tool_executor(state: RCAState) -> str:
     return "action_agent"
 
 
-def route_after_judge_agent(state: RCAState) -> str:
-    """JudgeAgent之后的路由"""
-    judge_result = state.get("judge_result", {})
-    is_root_cause_found = judge_result.get("is_root_cause_found", False)
-    should_terminate = state.get("should_terminate", False)
-
-    if is_root_cause_found or should_terminate:
-        return "generate_report"
-    else:
-        return "action_agent"

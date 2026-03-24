@@ -30,7 +30,8 @@ def generate_candidate_actions(
     executed_steps: List[Dict],
     current_observation: Optional[str],
     has_code: bool = False,
-    iteration_count: int = 0
+    iteration_count: int = 0,
+    is_root_cause_found: bool = False
 ) -> List[Dict[str, str]]:
     """使用LLM生成候选动作集"""
     sop_text = "无"
@@ -72,19 +73,20 @@ def generate_candidate_actions(
 
         # 过滤
         filtered = [a for a in actions if a.get("action") in tool_whitelist]
-        filtered = ensure_required_actions(filtered, has_code, executed_steps, matched_sop)
+        filtered = ensure_required_actions(filtered, has_code, executed_steps, matched_sop, is_root_cause_found)
         return filtered[:5]
 
     except Exception as e:
         print(f"LLM调用失败: {e}")
-        return get_fallback_actions(matched_sop, has_code)
+        return get_fallback_actions(matched_sop, has_code, is_root_cause_found)
 
 
 def ensure_required_actions(
     actions: List[Dict],
     has_code: bool,
     executed_steps: List[Dict] = None,
-    matched_sop: Optional[Dict] = None
+    matched_sop: Optional[Dict] = None,
+    is_root_cause_found: bool = False
 ) -> List[Dict]:
     """确保包含必要的动作，避免重复执行某些动作
 
@@ -161,12 +163,25 @@ def ensure_required_actions(
         # 只保留前2个动作
         actions = actions[:2]
 
+    # 版本9修复：JudgeAgent判定找到根因后，强制在候选动作中加入generate_report
+    if is_root_cause_found and "generate_report" not in action_names:
+        actions = [a for a in actions if a.get("action") != "generate_report"]
+        actions.insert(0, {
+            "action": "generate_report",
+            "explanation": "JudgeAgent已判定找到根因，建议生成最终报告并结束排查"
+        })
+        actions = actions[:3]
+
     return actions
 
 
-def get_fallback_actions(matched_sop: Optional[Dict], has_code: bool) -> List[Dict[str, str]]:
+def get_fallback_actions(matched_sop: Optional[Dict], has_code: bool, is_root_cause_found: bool = False) -> List[Dict[str, str]]:
     """兜底动作生成"""
     actions = []
+
+    # 版本9：JudgeAgent已找到根因时，优先提供generate_report
+    if is_root_cause_found:
+        actions.append({"action": "generate_report", "explanation": "JudgeAgent已判定找到根因，生成最终报告并结束排查"})
 
     if not has_code:
         actions.append({"action": "generate_code", "explanation": "生成可执行代码"})
