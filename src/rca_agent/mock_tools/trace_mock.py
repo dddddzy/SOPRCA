@@ -38,6 +38,18 @@ def collect_trace(
                 ]
             },
             {
+                "trace_id": "abc123def456",
+                "duration": 550, # 模拟 500ms 网络延迟
+                "spans": [
+                    {
+                        "operation_name": "/cart/checkout",
+                        "service": service_name,
+                        "duration": 520, # 核心超时点
+                        "status": "error"
+                    }
+                ]
+            },
+            {
                 "trace_id": "def789ghi012",
                 "duration": 150,
                 "spans": [

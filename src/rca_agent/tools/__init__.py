@@ -74,14 +74,6 @@ else:
                 from .log_tools import get_events_by_object
                 return get_events_by_object(**kwargs)
 
-            # SOP工具
-            elif tool_name == "match_sop_tool":
-                from .sop_tools import match_sop_tool
-                return match_sop_tool(fault_info)
-            elif tool_name == "generate_sop_tool":
-                from .sop_tools import generate_sop_tool
-                return generate_sop_tool(fault_info, **kwargs)
-
             else:
                 return {"error": f"未知工具: {tool_name}"}
 
@@ -111,7 +103,4 @@ __all__ = [
     "get_pod_logs",
     "search_logs",
     "get_events_by_object",
-    # SOP工具
-    "match_sop_tool",
-    "generate_sop_tool",
 ]

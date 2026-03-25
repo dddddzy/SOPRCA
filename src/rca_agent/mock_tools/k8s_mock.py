@@ -12,6 +12,12 @@ def detect_scenario(fault_info: str) -> str:
 
     if "oom" in fault_lower or "内存" in fault_info or "memory" in fault_lower:
         return "memory_oom"
+    # 场景 4.1: 故意报错测试
+    elif "mockerror" in fault_lower:
+        return "force_error"
+    # 场景 4.2: 防死循环测试（无异常数据）
+    elif "deadlock" in fault_lower:
+        return "deadlock_test"
     elif "crash" in fault_lower or "restart" in fault_lower or "重启" in fault_info:
         return "crashloop"
     elif "cpu" in fault_lower:
@@ -46,24 +52,28 @@ def mock_pod_analyze_cpu(fault_info: str) -> Dict[str, Any]:
 # ========== 内存泄漏/OOM场景 ==========
 
 def mock_pod_analyze_oom(fault_info: str) -> Dict[str, Any]:
-    """Pod分析 - OOM场景"""
+    """对齐真实 k8s_tools.py 的返回值结构"""
     return {
-        "success": True,
-        "data": {
-            "service": "paymentservice",
-            "namespace": "default",
-            "cpu_usage": "30%",
-            "cpu_limit": "1核",
-            "memory_usage": "99%",
-            "memory_limit": "512Mi",
-            "memory_rss": "500Mi",
-            "status": "Running",
-            "restarts": 5,
-            "restart_reason": "OOM killed"
-        },
-        "error": ""
+        "pods": [
+            {
+                "name": "cartservice-685bbd5d74-7vz5g",
+                "status": "Running",
+                "restarts": 12,  # 模拟频繁重启
+                "ready": 0,
+                "total": 1,
+                "containers": [
+                    {
+                        "name": "cartservice",
+                        "cpu_limit": "300m",
+                        "memory_limit": "128Mi",  # 极小内存引发 OOM 幻觉
+                        "cpu_request": "200m",
+                        "memory_request": "64Mi"
+                    }
+                ]
+            }
+        ],
+        "namespace": "default"
     }
-
 
 # ========== CrashLoopBackOff场景 ==========
 
@@ -91,6 +101,10 @@ def pod_analyze(fault_info: str, namespace: str = "default") -> Dict[str, Any]:
         return mock_pod_analyze_oom(fault_info)
     elif scenario == "crashloop":
         return mock_pod_analyze_crash(fault_info)
+    elif scenario == "force_error":
+        return {"error": "模拟连接超时，服务无响应"}
+    elif scenario == "deadlock_test":
+        return {"一切指标正常"}
     else:
         return mock_pod_analyze_cpu(fault_info)
 

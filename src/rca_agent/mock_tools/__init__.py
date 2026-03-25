@@ -26,9 +26,6 @@ TOOL_MAP = {
     "get_pod_logs": "log_mock",
     "search_logs": "log_mock",
     "get_events_by_object": "log_mock",
-    # SOP工具
-    "match_sop_tool": "sop_mock",
-    "generate_sop_tool": "sop_mock",
 }
 
 
@@ -69,11 +66,6 @@ def execute_tool(tool_name: str, fault_info: str, **kwargs) -> Dict[str, Any]:
             func = getattr(log_mock, tool_name, None)
             if func:
                 return func(fault_info, **kwargs)
-        elif module_name == "sop_mock":
-            from . import sop_mock
-            func = getattr(sop_mock, tool_name, None)
-            if func:
-                return func(fault_info, **kwargs)
 
         return {"error": f"工具 {tool_name} 未找到对应Mock实现"}
 
@@ -102,10 +94,6 @@ from .log_mock import (
     search_logs,
     get_events_by_object,
 )
-from .sop_mock import (
-    match_sop_tool,
-    generate_sop_tool,
-)
 
 __all__ = [
     "execute_tool",
@@ -125,7 +113,4 @@ __all__ = [
     "get_pod_logs",
     "search_logs",
     "get_events_by_object",
-    # SOP工具
-    "match_sop_tool",
-    "generate_sop_tool",
 ]

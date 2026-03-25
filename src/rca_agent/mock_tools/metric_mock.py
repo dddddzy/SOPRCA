@@ -16,6 +16,11 @@ def detect_scenario(fault_info: str) -> str:
         return "cpu_high"
     elif "网络" in fault_info or "network" in fault_lower:
         return "network"
+    elif "mockerror" in fault_lower:
+        return "force_error"
+    # 场景 4.2: 防死循环测试（无异常数据）
+    elif "deadlock" in fault_lower:
+        return "deadlock_test"
     else:
         return "cpu_high"
 
@@ -69,6 +74,10 @@ def get_relevant_metric(
             ],
             "diagnostic_hint": "注意：Prometheus 基础网络指标仅反映吞吐量，无法直接体现 TCP 阻塞或业务延迟。如果日志或事件中存在 'timeout'、'deadline'、'connection reset' 等超时报错，强烈建议调用 trace_tools（如 collect_trace 或 analyze_trace_latency）进一步分析具体的请求调用链耗时。"
         }
+    elif metric_name == "force_error":
+        return {"error": "模拟连接超时，服务无响应"}
+    elif metric_name == "deadlock_test":
+        return {"一切指标正常"}
     else:
         return {
             "success": False,
