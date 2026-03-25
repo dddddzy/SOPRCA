@@ -276,7 +276,8 @@ def run_rca_with_trace(fault_info: str):
 
 def main():
     import sys
-    fault_info = "productcatalogservice CPU过高"
+    fault_info = "productcatalogservice CPU过高"#1.1
+    #fault_info = "cartservice 出现严重的 TCP 阻塞和未知网络延迟，导致结账请求超时"#1.2
     #fault_info = "cartservice 无法连接 redis-cart，产生大量 i/o timeout 日志，疑似发生网络隔离或缓存阻断"
     #fault_info = "frontend 服务响应极其缓慢，页面加载卡顿"
     #fault_info = "frontend 页面报错，提示调用外部第三方支付网关 external-credit-card-api 发生 502 Bad Gateway 错误，疑似外部网络或者第三方服务宕机"

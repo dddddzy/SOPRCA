@@ -235,30 +235,76 @@ def get_relevant_metric(
 
         elif metric_name == "network":
             # PromQL: 获取网络接收速率（Bytes/s）
-            query = f'sum(rate(container_network_receive_bytes_total{{namespace="{namespace}"}}[1m])) by (pod)'
-            result = _query_prometheus(query)
+            query_rx = f'sum(rate(container_network_receive_bytes_total{{namespace="{namespace}"}}[1m])) by (pod)'
+            result_rx = _query_prometheus(query_rx)
 
-            if result.get("status") == "success":
-                for item in result.get("data", {}).get("result", []):
+            # PromQL: 获取网络发送速率（Bytes/s）
+            query_tx = f'sum(rate(container_network_transmit_bytes_total{{namespace="{namespace}"}}[1m])) by (pod)'
+            result_tx = _query_prometheus(query_tx)
+
+            # PromQL: 获取网络错误包数（接收方向）
+            query_err = f'sum(rate(container_network_receive_errors_total{{namespace="{namespace}"}}[1m])) by (pod)'
+            result_err = _query_prometheus(query_err)
+
+            # 建立pod名称到tx/err数据的索引
+            tx_map = {}
+            err_map = {}
+            if result_tx.get("status") == "success":
+                for item in result_tx.get("data", {}).get("result", []):
+                    pod_name = item.get("metric", {}).get("pod", "")
+                    tx_bytes_per_sec = float(item.get("value", [0, 0])[1])
+                    tx_map[pod_name] = tx_bytes_per_sec
+            if result_err.get("status") == "success":
+                for item in result_err.get("data", {}).get("result", []):
+                    pod_name = item.get("metric", {}).get("pod", "")
+                    err_count = float(item.get("value", [0, 0])[1])
+                    err_map[pod_name] = err_count
+
+            if result_rx.get("status") == "success":
+                for item in result_rx.get("data", {}).get("result", []):
                     pod_name = item.get("metric", {}).get("pod", "")
                     rx_bytes_per_sec = float(item.get("value", [0, 0])[1])
-                    # 转换为 KB/s 或 MB/s
+
+                    # 格式化 rx
                     if rx_bytes_per_sec > 1024 * 1024:
                         rx_str = f"{rx_bytes_per_sec / (1024 * 1024):.1f}MB/s"
                     elif rx_bytes_per_sec > 1024:
                         rx_str = f"{rx_bytes_per_sec / 1024:.1f}KB/s"
                     else:
                         rx_str = f"{rx_bytes_per_sec:.0f}B/s"
-                    pods_data.append({
-                        "name": pod_name,
-                        "network_rx": rx_str
-                    })
+
+                    pod_entry = {"name": pod_name, "network_rx": rx_str}
+
+                    # 格式化 tx
+                    if pod_name in tx_map:
+                        tx_bytes_per_sec = tx_map[pod_name]
+                        if tx_bytes_per_sec > 1024 * 1024:
+                            tx_str = f"{tx_bytes_per_sec / (1024 * 1024):.1f}MB/s"
+                        elif tx_bytes_per_sec > 1024:
+                            tx_str = f"{tx_bytes_per_sec / 1024:.1f}KB/s"
+                        else:
+                            tx_str = f"{tx_bytes_per_sec:.0f}B/s"
+                        pod_entry["network_tx"] = tx_str
+
+                    # 记录网络错误包（如果有）
+                    if pod_name in err_map and err_map[pod_name] > 0:
+                        pod_entry["network_errors"] = f"{err_map[pod_name]:.0f}/s"
+
+                    pods_data.append(pod_entry)
+
+            # 版本9：跨模态诊断提示，引导大模型调用Trace工具
+            diagnostic_hint = (
+                "注意：Prometheus 基础网络指标仅反映吞吐量，无法直接体现 TCP 阻塞或业务延迟。 "
+                "如果日志或事件中存在 'timeout'、'deadline'、'connection reset' 等超时报错，"
+                "强烈建议调用 trace_tools（如 collect_trace 或 analyze_trace_latency）进一步分析具体的请求调用链耗时。"
+            )
 
             return {
                 "success": True,
                 "metric_type": "network",
                 "namespace": namespace,
-                "pods": pods_data
+                "pods": pods_data,
+                "diagnostic_hint": diagnostic_hint
             }
 
         else:
@@ -342,6 +388,40 @@ def whether_is_abnormal_metric(
                         "memory": f"{mem_mib:.0f}Mi",
                         "memory_percent": mem_mib  # 简化处理
                     })
+
+        elif metric_name == "network":
+            # PromQL: 获取网络错误包速率
+            query_err = f'sum(rate(container_network_receive_errors_total{{namespace="{namespace}"}}[1m])) by (pod)'
+            result_err = _query_prometheus(query_err)
+
+            if result_err.get("status") != "success":
+                return {
+                    "is_abnormal": False,
+                    "reason": f"Prometheus查询失败: {result_err.get('error', '未知错误')}"
+                }
+
+            abnormal_pods = []
+            for item in result_err.get("data", {}).get("result", []):
+                pod_name = item.get("metric", {}).get("pod", "")
+                err_rate = float(item.get("value", [0, 0])[1])
+                if err_rate > 0:
+                    abnormal_pods.append({
+                        "pod": pod_name,
+                        "network_errors": f"{err_rate:.2f}/s"
+                    })
+
+            if abnormal_pods:
+                return {
+                    "is_abnormal": True,
+                    "reason": "检测到网络错误包增速 > 0，存在网络异常",
+                    "abnormal_pods": abnormal_pods
+                }
+
+            # 基础吞吐正常，但无法排除延迟问题
+            return {
+                "is_abnormal": False,
+                "reason": "基础网络吞吐正常，但 Prometheus 基础指标无法体现 TCP 重传或业务层延迟，建议查阅 Trace（collect_trace / analyze_trace_latency）进一步排查"
+            }
 
         else:
             return {
