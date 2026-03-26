@@ -345,10 +345,22 @@ def tool_executor_node(state: RCAState) -> Dict[str, Any]:
                 print(f"        {line}", file=sys.stderr)
 
             try:
-                # 导入真实工具函数
-                from ..tools.metric_tools import get_relevant_metric as _get_metric
-                from ..tools.k8s_tools import pod_analyze as _pod_analyze, check_events as _check_events, service_analyze as _service_analyze
-                from ..tools.log_tools import get_pod_logs as _get_pod_logs
+                from ..utils.config_loader import load_config
+                config = load_config()
+                mock_mode = config.get('mock_mode', True)
+
+                if mock_mode:
+                    # Mock模式：导入mock工具
+                    from ..mock_tools.metric_mock import get_relevant_metric as _get_metric
+                    from ..mock_tools.k8s_mock import pod_analyze as _pod_analyze, check_events as _check_events, service_analyze as _service_analyze
+                    from ..mock_tools.log_mock import get_pod_logs as _get_pod_logs
+                    print(f"    [执行] 使用Mock工具执行SOP代码", file=sys.stderr)
+                else:
+                    # 真实模式：导入真实工具函数
+                    from ..tools.metric_tools import get_relevant_metric as _get_metric
+                    from ..tools.k8s_tools import pod_analyze as _pod_analyze, check_events as _check_events, service_analyze as _service_analyze
+                    from ..tools.log_tools import get_pod_logs as _get_pod_logs
+                    print(f"    [执行] 使用真实工具执行SOP代码", file=sys.stderr)
 
                 # 预定义工具函数包装（避免名称冲突）
                 tool_wrapper_code = f'''
