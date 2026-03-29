@@ -16,7 +16,8 @@ PREDEFINED_TOOLS = [
     {"name": "pod_analyze", "description": "分析Pod状态"},
     {"name": "get_pod_logs", "description": "获取Pod日志"},
     {"name": "check_events", "description": "检查Kubernetes事件"},
-    {"name": "analyze_memory", "description": "分析内存使用"},
+    {"name": "collect_trace", "description": "收集链路追踪数据"},
+    {"name": "analyze_trace_latency", "description": "分析链路延迟"},
 ]
 
 

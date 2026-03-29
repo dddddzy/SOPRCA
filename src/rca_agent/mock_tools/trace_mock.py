@@ -20,7 +20,7 @@ def collect_trace(
         "service": service_name,
         "traces": [
             {
-                "trace_id": "abc123def456",
+                "trace_id": "abc123def4256",
                 "duration": 100,
                 "spans": [
                     {
@@ -39,13 +39,13 @@ def collect_trace(
             },
             {
                 "trace_id": "abc123def456",
-                "duration": 550, # 模拟 500ms 网络延迟
+                "duration": 550,  # <--- 改成 550ms 模拟严重延迟
                 "spans": [
                     {
                         "operation_name": "/cart/checkout",
                         "service": service_name,
-                        "duration": 520, # 核心超时点
-                        "status": "error"
+                        "duration": 520,  # <--- 核心超时 Span
+                        "status": "error" # <--- 标记为错误
                     }
                 ]
             },
@@ -89,8 +89,8 @@ def analyze_trace_latency(
         "service": service_name,
         "percentiles": {
             "p50": 50,
-            "p90": 120,
-            "p99": 200
+            "p90": 520,  # <--- 让 P90 和 P99 飙升
+            "p99": 550
         },
         "unit": "ms"
     }

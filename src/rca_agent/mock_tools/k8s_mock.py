@@ -22,9 +22,35 @@ def detect_scenario(fault_info: str) -> str:
         return "crashloop"
     elif "cpu" in fault_lower:
         return "cpu_high"
+    elif "网络" in fault_info or "network" in fault_lower or "延迟" in fault_info:
+        return "network"
     else:
         return "cpu_high"  # 默认
 
+
+def mock_pod_analyze_network(fault_info: str) -> Dict[str, Any]:
+    """Pod分析 - 网络延迟场景（指标全绿，无异常）"""
+    return {
+        "pods": [
+            {
+                "name": "cartservice-685bbd5d74-7vz5g",
+                "status": "Running",
+                "restarts": 0,  # 没有异常重启
+                "ready": 1,
+                "total": 1,
+                "containers": [
+                    {
+                        "name": "cartservice",
+                        "cpu_limit": "500m",
+                        "memory_limit": "512Mi",
+                        "cpu_request": "200m",
+                        "memory_request": "256Mi"
+                    }
+                ]
+            }
+        ],
+        "namespace": "default"
+    }
 
 # ========== CPU过高场景 ==========
 
@@ -105,6 +131,8 @@ def pod_analyze(fault_info: str, namespace: str = "default") -> Dict[str, Any]:
         return {"error": "模拟连接超时，服务无响应"}
     elif scenario == "deadlock_test":
         return {"一切指标正常"}
+    elif scenario == "network":
+        return mock_pod_analyze_network(fault_info)
     else:
         return mock_pod_analyze_cpu(fault_info)
 

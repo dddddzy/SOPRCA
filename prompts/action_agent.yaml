@@ -50,3 +50,5 @@ tool_whitelist:
   - pod_analyze
   - get_pod_logs
   - check_events
+  - collect_trace
+  - analyze_trace_latency

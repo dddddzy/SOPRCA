@@ -19,6 +19,8 @@ def detect_scenario(fault_info: str) -> str:
     # 场景 4.2: 防死循环测试（无异常数据）
     elif "deadlock" in fault_lower:
         return "deadlock_test"
+    elif "网络" in fault_info or "network" in fault_lower or "延迟" in fault_info:
+        return "network"
     else:
         return "cpu_high"
 
@@ -43,6 +45,15 @@ def get_pod_logs(
             "logs": "java.lang.OutOfMemoryError: Java heap space\nat com.payment.Service.process(Service.java:125)\njava.lang.OutOfMemoryError: GC overhead limit exceeded",
             "has_error": True,
             "error_type": "OOM"
+        }
+    elif scenario == "network":
+        return {
+            "success": True,
+            "pod": "cartservice",
+            "namespace": namespace,
+            "logs": "INFO Starting cartservice...\nERROR context deadline exceeded: failed to connect to downstream within 500ms",
+            "has_error": True,
+            "error_type": "TimeoutError"
         }
     elif scenario == "network": # 增加对网络延迟的日志 Mock
         logs = "2026-03-24 16:35:00 INFO Starting application...\n2026-03-24 16:35:05 ERROR timeout: failed to connect service 10.42.0.29:7070 within 1s: context deadline exceeded\n2026-03-24 16:35:06 INFO Application is shutting down..."

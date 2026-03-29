@@ -20,7 +20,9 @@ TOOL_WHITELIST = [
     "get_relevant_metric",
     "pod_analyze",
     "get_pod_logs",
-    "check_events"
+    "check_events",
+    "collect_trace",
+    "analyze_trace_latency"
 ]
 
 
