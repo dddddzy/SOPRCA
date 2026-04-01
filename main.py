@@ -281,7 +281,6 @@ def main():
     #fault_info = "cartservice 出现严重的 TCP 阻塞和未知网络延迟，导致结账请求超时"
     #fault_info = "frontend 服务响应极其缓慢，页面加载卡顿"
     #fault_info = "frontend 页面报错，提示调用外部第三方支付网关 external-credit-card-api 发生 502 Bad Gateway 错误，疑似外部网络或者第三方服务宕机"
-    #fault_info = "外星人攻打麒麟软件了"
 
     # 先打印配置信息
     print_config()
