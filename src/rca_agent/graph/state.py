@@ -83,5 +83,9 @@ class RCAState(TypedDict):
     # 版本7新增：论文强制步骤 - run_sop后必须走match_observation
     need_match_observation: bool
 
+    # 版本9新增：根因收敛机制（情况二）
+    # 当 judge_agent 判定未找到根因时，生成一个更具体的问题描述
+    refined_problem_statement: Optional[str]
+
     # 最终结果
     final_report: Optional[str]

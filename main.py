@@ -67,6 +67,8 @@ def run_rca_with_trace(fault_info: str):
         "should_terminate": False,
         # 版本7新增字段
         "need_match_observation": False,
+        # 版本9新增字段
+        "refined_problem_statement": None,
         "final_report": None
     }
 
@@ -279,7 +281,7 @@ def main():
     fault_info = "productcatalogservice CPU过高"#1.1
     #fault_info = "cartservice 出现严重的 TCP 阻塞和未知网络延迟，导致结账请求超时"#1.2
     #fault_info = "cartservice 出现严重的 TCP 阻塞和未知网络延迟，导致结账请求超时"
-    #fault_info = "frontend 服务响应极其缓慢，页面加载卡顿"
+    #fault_info = "服务响应缓慢"
     #fault_info = "frontend 页面报错，提示调用外部第三方支付网关 external-credit-card-api 发生 502 Bad Gateway 错误，疑似外部网络或者第三方服务宕机"
 
     # 先打印配置信息

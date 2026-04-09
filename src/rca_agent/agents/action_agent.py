@@ -143,7 +143,8 @@ def ensure_required_actions(
     # 版本7修复：检查是否已执行过match_observation
     has_match_observation = "match_observation" in executed_actions
 
-    # 如果已经执行过match_observation，强制从候选中移除它
+    # 版本9修复：如果已执行过match_observation，强制从候选中移除它
+    # 这是为了避免 match_observation 被重复执行
     if has_match_observation:
         actions = [a for a in actions if a.get("action") != "match_observation"]
         # 如果过滤后没有动作了，添加默认动作
@@ -152,8 +153,12 @@ def ensure_required_actions(
                 {"action": "get_relevant_metric", "explanation": "获取服务指标数据"},
                 {"action": "pod_analyze", "explanation": "分析Pod状态"}
             ]
+        # 版本9修复：已执行过match_observation后，不应该再添加任何观察匹配动作
+        # 直接返回，避免重复
+        return actions[:5]
 
     # 如果已执行run_sop但还没有执行match_observation，添加它
+    # 版本9修复：只有在尚未执行match_observation时才添加，且只添加一次
     if has_run_sop and not has_match_observation:
         # 满足论文条件：已执行run_sop + 尚未匹配历史故障
         match_obs_action = {"action": "match_observation", "explanation": "获取历史故障参考，辅助根因判定"}

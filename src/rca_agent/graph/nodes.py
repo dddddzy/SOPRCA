@@ -5,7 +5,7 @@ nodes.py - 所有节点的统一注册
 
 import sys
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from .state import RCAState
 from ..agents.action_agent import generate_candidate_actions
 from ..agents.main_agent import select_action
@@ -23,18 +23,25 @@ def match_sop_node(state: RCAState) -> Dict[str, Any]:
     """节点: 匹配SOP
 
     版本8修复：只有当匹配到新的或不同的SOP时才重置状态
+    版本9修复：如果有 refined_problem_statement，优先使用它进行匹配
     """
     AuditLogger.log_node_entry("match_sop", state)
 
     fault_info = state.get("fault_info", "")
+    refined_problem = state.get("refined_problem_statement")
     current_sop = state.get("matched_sop", {})
     current_sop_id = current_sop.get("sop_id") if current_sop else None
 
     print(f"    [MatchSOP] 开始匹配SOP...", file=sys.stderr)
-    print(f"    [MatchSOP] 故障信息: {fault_info}", file=sys.stderr)
+    print(f"    [MatchSOP] 原始故障信息: {fault_info}", file=sys.stderr)
     print(f"    [MatchSOP] 当前SOP: {current_sop.get('sop_name', '无') if current_sop else '无'}", file=sys.stderr)
 
-    matched_sop = match_sop(fault_info)
+    # 版本9：如果有细化的问题描述，优先使用它进行匹配
+    query_for_match = refined_problem if refined_problem else fault_info
+    if refined_problem:
+        print(f"    [MatchSOP] 使用细化问题描述: {refined_problem[:60]}...", file=sys.stderr)
+
+    matched_sop = match_sop(query_for_match)
 
     if matched_sop:
         matched_sop_id = matched_sop.get("sop_id")
@@ -56,23 +63,29 @@ def match_sop_node(state: RCAState) -> Dict[str, Any]:
                 "generated_code": "",  # 清空旧代码，迫使重新生成
                 # 版本8修复：不再清空executed_steps，保留执行记忆防止死循环
                 "consecutive_no_gain": 0,
+                # 版本9修复：匹配成功后清除细化问题描述
+                "refined_problem_statement": None,
                 # 保留 action_history 和 iteration_count
             }
             print(f"    [MatchSOP] 新SOP已匹配，状态已重置（保留action_history和iteration_count）", file=sys.stderr)
         else:
             # 同SOP不重置状态，保留已有的执行进度
+            # 版本9修复：但仍需清空 refined_problem_statement，避免无限循环
             result = {
-                "matched_sop": matched_sop
+                "matched_sop": matched_sop,
+                "refined_problem_statement": None  # 版本9修复：清空细化问题描述
             }
             print(f"    [MatchSOP] 同SOP不重置状态", file=sys.stderr)
     else:
         print(f"    [MatchSOP] 未匹配到SOP，将触发自动生成", file=sys.stderr)
         # 未匹配到SOP也重置（因为无法继续当前SOP流程）
         # 版本8修复：保留 executed_steps，维护执行记忆
+        # 版本9修复：必须清空 refined_problem_statement，避免无限循环
         result = {
             "matched_sop": matched_sop,
             "generated_code": "",
             "consecutive_no_gain": 0,
+            "refined_problem_statement": None,  # 版本9修复：清空细化问题描述
             # 保留 action_history 和 iteration_count
         }
 
@@ -85,11 +98,13 @@ def generate_sop_node(state: RCAState) -> Dict[str, Any]:
 
     当MainAgent选择generate_sop动作时调用此节点
     版本8修复：生成新SOP后必须强制重置状态，迫使重新走代码生成流程
+    版本9修复：必须更新 executed_steps，避免 generate_sop 被重复选择
     """
     AuditLogger.log_node_entry("generate_sop", state)
 
     fault_info = state.get("fault_info", "")
     similar_history_faults = state.get("similar_history_faults", [])
+    executed_steps = state.get("executed_steps", [])
 
     print(f"    [GenerateSOP] 开始生成SOP...", file=sys.stderr)
     print(f"    [GenerateSOP] 故障信息: {fault_info}", file=sys.stderr)
@@ -105,6 +120,14 @@ def generate_sop_node(state: RCAState) -> Dict[str, Any]:
         similar_sops=None
     )
 
+    # 版本9修复：记录 generate_sop 到 executed_steps，避免重复选择
+    new_step = {
+        "action": "generate_sop",
+        "explanation": "没有匹配到SOP，自动生成新SOP",
+        "result": f"SOP生成{'成功' if new_sop else '失败'}"
+    }
+    executed_steps = executed_steps + [new_step]
+
     if new_sop:
         print(f"    [GenerateSOP] SOP生成完成!", file=sys.stderr)
         print(f"    [GenerateSOP]   名称: {new_sop.get('sop_name', 'N/A')}", file=sys.stderr)
@@ -118,6 +141,7 @@ def generate_sop_node(state: RCAState) -> Dict[str, Any]:
             "generated_code": "",  # 清空旧代码，迫使重新生成
             # 版本8修复：不再清空executed_steps，保留执行记忆防止死循环
             "consecutive_no_gain": 0,
+            "executed_steps": executed_steps,  # 版本9修复：更新 executed_steps
             # 注意：保留 action_history 和 iteration_count，维护全局试错记忆和死循环保护
         }
         print(f"    [GenerateSOP] 状态已重置：generated_code=''（保留executed_steps/action_history/iteration_count）", file=sys.stderr)
@@ -543,28 +567,100 @@ def judge_agent_node(state: RCAState) -> Dict[str, Any]:
     termination_reason = judge_result.get("termination_reason", "")
     should_terminate = is_root_cause_found or termination_reason != ""
 
-    # 检查信息增益
-    if not should_terminate:
-        has_gain = check_information_gain(executed_steps, extracted_clues)
-        new_no_gain = 0 if has_gain else consecutive_no_gain + 1
+    # 版本9：收敛机制 - 检查信息增益
+    new_no_gain = 0
+    refined_problem_statement = None
 
-        if new_no_gain >= 3:
-            should_terminate = True
-            judge_result["explanation"] = "连续3轮无信息增益，强制终止"
-        print(f"    [JudgeAgent]   本轮有增益: {'是' if has_gain else '否'}", file=sys.stderr)
-    else:
-        new_no_gain = 0
+    if not should_terminate:
+        # 版本9.1修复：如果LLM判定未找到根因，无论是否有线索都视为"未找到根因"
+        # 这是触发收敛机制的关键条件
+        if not is_root_cause_found:
+            new_no_gain = consecutive_no_gain + 1
+            print(f"    [JudgeAgent]   LLM未找到根因，设置无增益次数: {new_no_gain}", file=sys.stderr)
+
+            if new_no_gain >= 3:
+                should_terminate = True
+                judge_result["explanation"] = "连续3轮无信息增益，强制终止"
+        else:
+            # 只有找到根因时才重置无增益计数
+            new_no_gain = 0
+
+        # 版本9新增：如果未找到根因且无增益次数>=1，生成细化的问题描述用于收敛
+        # 版本9.1修复：同时检查extracted_clues不为空
+        if not is_root_cause_found and new_no_gain >= 1 and extracted_clues:
+            refined_problem_statement = generate_refined_problem(
+                fault_info, extracted_clues, executed_steps
+            )
+            if refined_problem_statement:
+                print(f"    [JudgeAgent]   生成细化问题: {refined_problem_statement[:50]}...", file=sys.stderr)
 
     print(f"    [JudgeAgent]   终止: {'是' if should_terminate else '否'}", file=sys.stderr)
 
     result = {
         "judge_result": judge_result,
         "consecutive_no_gain": new_no_gain,
-        "should_terminate": should_terminate
+        "should_terminate": should_terminate,
+        "refined_problem_statement": refined_problem_statement
     }
 
     AuditLogger.log_node_exit("judge_agent", result)
     return result
+
+
+def generate_refined_problem(
+    fault_info: str,
+    extracted_clues: Dict[str, Any],
+    executed_steps: List[Dict]
+) -> Optional[str]:
+    """版本9新增：根据线索生成更具体的故障描述，用于SOP匹配收敛
+
+    当 judge_agent 判定未找到根因时，调用此函数生成一个更具体的问题描述，
+    使得下一轮匹配SOP时能够更精确地定位问题。
+    """
+    try:
+        # 提取关键信息
+        fault_type = extracted_clues.get("fault_type", "")
+        fault_location = extracted_clues.get("fault_location", "")
+        key_clues = extracted_clues.get("key_clues", [])
+        possible_causes = extracted_clues.get("possible_root_causes", [])
+        excluded_causes = extracted_clues.get("excluded_root_causes", [])
+
+        # 构建细化的问题描述
+        refined_parts = []
+
+        # 添加原始故障信息
+        refined_parts.append(fault_info)
+
+        # 添加故障类型
+        if fault_type and fault_type != "未知":
+            refined_parts.append(f"故障类型: {fault_type}")
+
+        # 添加故障位置
+        if fault_location and fault_location != "未知":
+            refined_parts.append(f"故障位置: {fault_location}")
+
+        # 添加可能的根因
+        if possible_causes:
+            causes_text = "、".join(possible_causes[:2])  # 只取前2个
+            refined_parts.append(f"可能根因: {causes_text}")
+
+        # 添加已排除的根因
+        if excluded_causes:
+            excluded_text = "、".join(excluded_causes[:2])
+            refined_parts.append(f"已排除: {excluded_text}")
+
+        # 组合成最终的问题描述
+        refined_problem = " | ".join(refined_parts)
+
+        # 如果组合后比原始描述更有信息量，返回它
+        if len(refined_problem) > len(fault_info) + 20:
+            return refined_problem
+        else:
+            return None
+
+    except Exception as e:
+        print(f"    [JudgeAgent] 生成细化问题失败: {e}", file=sys.stderr)
+        return None
 
 
 def check_information_gain(executed_steps: List[Dict], extracted_clues: Dict) -> bool:
@@ -777,6 +873,33 @@ def route_after_tool_executor(state: RCAState) -> str:
     版本8修复：ToolExecutor执行完毕后应无条件交回大脑(action_agent)重新决策
     ob_agent和judge_agent由match_observation和judge_agent的条件边触发
     """
+    return "action_agent"
+
+
+def route_after_judge_agent(state: RCAState) -> str:
+    """JudgeAgent之后的路由
+
+    版本9修复：检查 should_terminate 决定是否终止流程
+    - should_terminate == True：生成报告，终止流程
+    - should_terminate == False + refined_problem_statement 存在：回到 match_sop 用细化描述重新匹配
+    - 否则：继续循环，回到 action_agent 重新决策
+    """
+    should_terminate = state.get("should_terminate", False)
+    judge_result = state.get("judge_result", {})
+    is_root_cause_found = judge_result.get("is_root_cause_found", False) if judge_result else False
+    refined_problem = state.get("refined_problem_statement")
+
+    # 如果找到根因或应该终止，则生成报告
+    if should_terminate or is_root_cause_found:
+        print(f"    [路由] JudgeAgent判定终止: should_terminate={should_terminate}, is_root_cause_found={is_root_cause_found}", file=sys.stderr)
+        return "generate_report"
+
+    # 版本9新增：如果有细化的问题描述，回到 match_sop 用它重新匹配（收敛机制）
+    if refined_problem:
+        print(f"    [路由] 检测到细化问题描述，回到 match_sop 重新匹配", file=sys.stderr)
+        return "match_sop"
+
+    # 否则继续循环
     return "action_agent"
 
 

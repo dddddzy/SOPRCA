@@ -19,7 +19,8 @@ from .nodes import (
     ob_agent_node,
     judge_agent_node,
     generate_report_node,
-    route_after_main_agent
+    route_after_main_agent,
+    route_after_judge_agent
 )
 
 
@@ -80,8 +81,18 @@ def create_rca_graph():
     # 7. ob_agent -> judge_agent
     graph.add_edge("ob_agent", "judge_agent")
 
-    # 8. judge_agent -> action_agent（版本9修复：JudgeAgent只负责评估，不直接终止流程）
-    graph.add_edge("judge_agent", "action_agent")
+    # 8. judge_agent -> (action_agent 或 generate_report 或 match_sop) 条件边
+    # 版本9修复：检查 should_terminate，如果为 True 则终止流程生成报告
+    # 版本9.1修复：添加 match_sop 目标以支持收敛机制
+    graph.add_conditional_edges(
+        "judge_agent",
+        route_after_judge_agent,
+        {
+            "action_agent": "action_agent",
+            "generate_report": "generate_report",
+            "match_sop": "match_sop"  # 版本9.1：收敛机制，回到match_sop用细化问题重新匹配
+        }
+    )
 
     # 9. generate_report -> 结束
     graph.add_edge("generate_report", END)
@@ -136,6 +147,8 @@ def run_rca(fault_info: str) -> RCAState:
         "should_terminate": False,
         # 版本7新增：论文强制步骤
         "need_match_observation": False,
+        # 版本9新增：收敛机制
+        "refined_problem_statement": None,
         # 最终结果
         "final_report": None
     }
