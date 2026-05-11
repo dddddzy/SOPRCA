@@ -11,11 +11,14 @@ from ..utils.prompt_loader import render_prompt
 from ..utils import parse_json_from_response
 from ..utils.logger import AuditLogger
 
-# 防死循环配置
-MAX_ITERATIONS = 10  # 最大循环次数
-MAX_NO_GAIN = 3  # 最大无增益次数
-REPEAT_THRESHOLD = 2  # 重复动作检测阈值
-GLOBAL_TIMEOUT = 300  # 全局超时5分钟
+# 防死循环配置 - 从 config.yaml 读取
+from ..utils.config_loader import get_loop_config
+
+_loop_config = get_loop_config()
+MAX_ITERATIONS = _loop_config.get('max_cycle_limit', 20)  # 最大循环次数
+MAX_NO_GAIN = _loop_config.get('max_no_gain_times', 3)  # 最大无增益次数
+REPEAT_THRESHOLD = _loop_config.get('max_repeat_action_times', 2)  # 重复动作检测阈值
+GLOBAL_TIMEOUT = _loop_config.get('global_timeout', 600)  # 全局超时10分钟
 
 
 def judge_root_cause(

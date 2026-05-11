@@ -25,10 +25,8 @@ from .nodes import (
 
 
 def create_rca_graph():
-    """创建RCA状态图"""
     graph = StateGraph(RCAState)
 
-    # 添加所有节点
     graph.add_node("match_sop", match_sop_node)
     graph.add_node("generate_sop", generate_sop_node)
     graph.add_node("match_observation", match_observation_node)

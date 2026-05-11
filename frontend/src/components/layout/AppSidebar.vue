@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   LayoutDashboard,
   MessageCircle,
@@ -12,14 +13,15 @@ import {
   Brain
 } from 'lucide-vue-next'
 
+const { t } = useI18n()
 const router = useRouter()
 
 const navItems = [
-  { path: '/', name: 'dashboard', label: '仪表盘', icon: LayoutDashboard },
-  { path: '/knowledge', name: 'knowledge', label: '知识问答', icon: MessageCircle },
-  { path: '/diagnosis', name: 'diagnosis', label: '实时诊断', icon: Activity },
-  { path: '/sop', name: 'sop', label: 'SOP管理台', icon: BookOpen },
-  { path: '/settings', name: 'settings', label: '设置', icon: Settings }
+  { path: '/', name: 'dashboard', label: 'nav.dashboard', icon: LayoutDashboard },
+  { path: '/knowledge', name: 'knowledge', label: 'nav.knowledge', icon: MessageCircle },
+  { path: '/diagnosis', name: 'diagnosis', label: 'nav.diagnosis', icon: Activity },
+  { path: '/sop', name: 'sop', label: 'nav.sop', icon: BookOpen },
+  { path: '/settings', name: 'settings', label: 'nav.settings', icon: Settings }
 ]
 
 const isCollapsed = computed(() => false)
@@ -49,7 +51,7 @@ function navigate(path: string) {
       </div>
       <div v-if="!isCollapsed" class="flex flex-col">
         <span class="text-lg font-bold text-dark-100">SOPRCA</span>
-        <span class="text-xs text-dark-400">智能根因分析</span>
+        <span class="text-xs text-dark-400">{{ t('nav.diagnosis') }}</span>
       </div>
     </div>
 
@@ -82,7 +84,7 @@ function navigate(path: string) {
             isActive(item.path) ? 'text-primary-400' : ''
           ]"
         >
-          {{ item.label }}
+          {{ t(item.label) }}
         </span>
       </button>
     </nav>

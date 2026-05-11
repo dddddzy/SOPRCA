@@ -12,6 +12,7 @@ from ..agents.main_agent import select_action
 from ..agents.code_agent import generate_code
 from ..agents.ob_agent import extract_clues
 from ..agents.judge_agent import judge_root_cause
+from ..utils.config_loader import get_loop_config
 from ..tools import execute_tool
 from ..knowledge_base.sop_store import match_sop
 from ..knowledge_base.history_store import match_history_faults, init_history_knowledge_base
@@ -542,6 +543,8 @@ def judge_agent_node(state: RCAState) -> Dict[str, Any]:
     consecutive_no_gain = state.get("consecutive_no_gain", 0)
     action_history = state.get("action_history", [])
     global_start_time = state.get("global_start_time")
+    anti_loop_config = get_loop_config()
+    max_iterations = anti_loop_config.get('max_cycle_limit', 20)
 
     print(f"", file=sys.stderr)
     print(f"    [JudgeAgent] 开始根因判定...", file=sys.stderr)
@@ -555,7 +558,7 @@ def judge_agent_node(state: RCAState) -> Dict[str, Any]:
         executed_steps,
         iteration_count,
         consecutive_no_gain,
-        max_iterations=10,
+        max_iterations=max_iterations,
         action_history=action_history,
         global_start_time=global_start_time
     )
@@ -578,9 +581,10 @@ def judge_agent_node(state: RCAState) -> Dict[str, Any]:
             new_no_gain = consecutive_no_gain + 1
             print(f"    [JudgeAgent]   LLM未找到根因，设置无增益次数: {new_no_gain}", file=sys.stderr)
 
-            if new_no_gain >= 3:
+            max_no_gain = anti_loop_config.get('max_no_gain_times', 3)
+            if new_no_gain >= max_no_gain:
                 should_terminate = True
-                judge_result["explanation"] = "连续3轮无信息增益，强制终止"
+                judge_result["explanation"] = f"连续{max_no_gain}轮无信息增益，强制终止"
         else:
             # 只有找到根因时才重置无增益计数
             new_no_gain = 0
@@ -844,7 +848,40 @@ def generate_report_node(state: RCAState) -> Dict[str, Any]:
         report += f"\n**本次诊断贡献**  \n已将完整诊断过程存入历史故障库（{fault_id}），供后续相似故障参考。\n"
 
     AuditLogger.log_node_exit("generate_report", {"final_report": report.strip()})
-    return {"final_report": report.strip()}
+
+    # 只有确认找到根因时才设置 final_root_cause
+    confirmed_root_cause = final_root_cause if is_root_cause_found else ""
+
+    # 返回结构化数据供前端使用
+    structured = {
+        "fault_info": fault_info,
+        "matched_sop_name": matched_sop.get('sop_name') if matched_sop else None,
+        "matched_sop_steps": len(matched_sop.get('steps', [])) if matched_sop else None,
+        "diagnosis_path": action_names,
+        "apl": apl,
+        "similar_faults": [
+            {
+                "id": hist.get('fault_id', 'N/A'),
+                "similarity": hist.get('similarity_score', 0),
+                "root_cause": hist.get('root_cause', 'N/A')
+            }
+            for hist in (similar_history_faults[:3] if similar_history_faults else [])
+        ],
+        "ob_agent_clues": {
+            "fault_type": extracted_clues.get('fault_type') if extracted_clues else None,
+            "fault_location": extracted_clues.get('fault_location') if extracted_clues else None,
+            "key_clues": extracted_clues.get('key_clues', []) if extracted_clues else [],
+            "excluded_reasons": extracted_clues.get('excluded_root_causes', []) if extracted_clues else []
+        },
+        "is_root_cause_found": is_root_cause_found,
+        "judge_agent_reasoning": judge_result.get('explanation') if judge_result else None,
+        "termination_reason": judge_result.get('termination_reason') if judge_result else None,
+        "final_root_cause": confirmed_root_cause,
+        "suggestions": judge_result.get('suggested_actions', []) if judge_result else [],
+        "fault_id": fault_id
+    }
+
+    return {"final_report": report.strip(), "structured_report": structured}
 
 
 # 路由函数

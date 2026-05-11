@@ -1,22 +1,30 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { AppSettings, ModelConfig, ServerConfig } from '@/types'
+import type { AppSettings, ModelConfig, ClusterConfig, AntiLoopConfig } from '@/types'
 
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<AppSettings>({
     theme: 'dark',
     language: 'zh-CN',
     model: {
-      apiEndpoint: 'https://api.minimax.chat/v1',
-      modelName: 'MiniMax-Text-01',
-      apiKey: '',
+      apiEndpoint: 'https://api.deepseek.com',
+      modelName: 'deepseek-chat',
+      apiKey: 'sk-d22b90a04ecd4cce8fc03304d2bbfc04',
       maxTokens: 8192,
-      temperature: 0.7
+      temperature: 0.1
     },
-    server: {
-      host: '0.0.0.0',
-      port: 8000,
-      langgraphUrl: 'http://localhost:8000'
+    cluster: {
+      kubeconfig: '',
+      server: 'https://192.168.100.132:6443',
+      context: 'default',
+      env: 'dev',
+      mockMode: false
+    },
+    antiLoop: {
+      maxCycleLimit: 20,
+      maxNoGainTimes: 3,
+      maxRepeatActionTimes: 2,
+      globalTimeout: 600
     }
   })
 
@@ -25,8 +33,8 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSettings()
   }
 
-  function updateServerConfig(config: Partial<ServerConfig>) {
-    settings.value.server = { ...settings.value.server, ...config }
+  function updateClusterConfig(config: Partial<ClusterConfig>) {
+    settings.value.cluster = { ...settings.value.cluster, ...config }
     saveSettings()
   }
 
@@ -45,21 +53,64 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  function applyPreset(preset: {
+    apiEndpoint: string
+    modelName: string
+    apiKey: string
+    temperature: number
+    maxTokens: number
+  }) {
+    settings.value.model = {
+      ...settings.value.model,
+      apiEndpoint: preset.apiEndpoint,
+      modelName: preset.modelName,
+      apiKey: preset.apiKey,
+      temperature: preset.temperature,
+      maxTokens: preset.maxTokens
+    }
+    saveSettings()
+  }
+
+  async function saveModelConfigToBackend() {
+    try {
+      const response = await fetch('/api/settings/model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings.value.model)
+      })
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      return true
+    } catch (e) {
+      console.error('Failed to save model config:', e)
+      return false
+    }
+  }
+
   function resetSettings() {
     settings.value = {
       theme: 'dark',
       language: 'zh-CN',
       model: {
-        apiEndpoint: 'https://api.minimax.chat/v1',
-        modelName: 'MiniMax-Text-01',
-        apiKey: '',
+        apiEndpoint: 'https://api.deepseek.com',
+        modelName: 'deepseek-chat',
+        apiKey: 'sk-d22b90a04ecd4cce8fc03304d2bbfc04',
         maxTokens: 8192,
-        temperature: 0.7
+        temperature: 0.1
       },
-      server: {
-        host: '0.0.0.0',
-        port: 8000,
-        langgraphUrl: 'http://localhost:8000'
+      cluster: {
+        kubeconfig: '',
+        server: 'https://192.168.100.132:6443',
+        context: 'default',
+        env: 'dev',
+        mockMode: false
+      },
+      antiLoop: {
+        maxCycleLimit: 20,
+        maxNoGainTimes: 3,
+        maxRepeatActionTimes: 2,
+        globalTimeout: 600
       }
     }
     saveSettings()
@@ -68,9 +119,11 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     settings,
     updateModelConfig,
-    updateServerConfig,
+    updateClusterConfig,
     saveSettings,
     loadSettings,
+    applyPreset,
+    saveModelConfigToBackend,
     resetSettings
   }
 })

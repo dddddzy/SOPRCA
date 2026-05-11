@@ -1,0 +1,148 @@
+# Chaos Mesh 故障注入模板 - 演示用
+# 使用方法: kubectl apply -f <template-file>.yaml
+
+# ===========================================
+# 模板1: CPU压力测试 (已有 - 供参考)
+# ===========================================
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: cpu-stress-infinite
+  namespace: chaos-mesh
+spec:
+  mode: one
+  selector:
+    labelSelectors:
+      app: productcatalogservice
+    namespaces:
+      - default
+  stressors:
+    cpu:
+      load: 100
+      workers: 1
+---
+# 快速验证命令:
+# kubectl apply -f demo-cpu-stress.yaml
+# kubectl get stresschaos -n chaos-mesh
+# watch kubectl get pods -l app=productcatalogservice
+
+# ===========================================
+# 模板2: 内存压力测试
+# ===========================================
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: memory-stress-infinite
+  namespace: chaos-mesh
+spec:
+  mode: one
+  selector:
+    labelSelectors:
+      app: paymentservice
+    namespaces:
+      - default
+  stressors:
+    mem:
+      size: 256MiB
+      workers: 1
+---
+# 验证命令:
+# kubectl apply -f demo-memory-stress.yaml
+# 观察: kubectl top pods -l app=paymentservice
+
+# ===========================================
+# 模板3: 网络延迟测试
+# ===========================================
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-latency
+  namespace: chaos-mesh
+spec:
+  mode: one
+  selector:
+    labelSelectors:
+      app: cartservice
+    namespaces:
+      - default
+  action: delay
+  delay:
+    latency: "2000ms"
+    correlation: "100"
+    jitter: "0ms"
+---
+# 验证命令:
+# kubectl apply -f demo-network-latency.yaml
+
+# ===========================================
+# 模板4: Pod重启测试
+# ===========================================
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: pod-reboot-frequent
+  namespace: chaos-mesh
+spec:
+  mode: one
+  selector:
+    labelSelectors:
+      app: shippingservice
+    namespaces:
+      - default
+  action: pod-kill
+  gracePeriod: 0
+---
+# 验证命令:
+# kubectl apply -f demo-pod-reboot.yaml
+# watch kubectl get pods -l app=shippingservice
+
+# ===========================================
+# 模板5: IO压力测试 (磁盘)
+# ===========================================
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: disk-io-stress
+  namespace: chaos-mesh
+spec:
+  mode: one
+  selector:
+    labelSelectors:
+      app: mongodb
+    namespaces:
+      - default
+  stressors:
+    io:
+      workers: 4
+---
+# 验证命令:
+# kubectl apply -f demo-disk-io-stress.yaml
+
+# ===========================================
+# 模板6: HTTP错误 (用于502/500演示)
+# ===========================================
+apiVersion: chaos-mesh.org/v1alpha1
+kind: HttpChaos
+metadata:
+  name: http-502-error
+  namespace: chaos-mesh
+spec:
+  mode: one
+  selector:
+    labelSelectors:
+      app: frontend
+    namespaces:
+      - default
+  target: Target
+  port: 8080
+  path: "/api/checkout"
+  method: GET
+  abort: true
+---
+# 验证命令:
+# kubectl apply -f demo-http-502.yaml
+
+# ===========================================
+# 清理所有故障:
+# ===========================================
+# kubectl delete stresschaos,podchaos,networkchaos,httpchaos -n chaos-mesh --all

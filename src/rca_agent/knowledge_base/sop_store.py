@@ -66,6 +66,8 @@ def init_sop_knowledge_base():
             description TEXT,
             steps TEXT NOT NULL,
             version TEXT DEFAULT '1.0',
+            match_count INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'active',
             create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -94,8 +96,8 @@ def add_sop_to_knowledgebase(sop_data: Dict[str, Any], chroma_client):
 
     cursor.execute(f"""
         INSERT OR REPLACE INTO {SOP_TABLE}
-        (sop_id, sop_name, parent_id, fault_type, description, steps, version)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (sop_id, sop_name, parent_id, fault_type, description, steps, version, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         sop_data['sop_id'],
         sop_data['sop_name'],
@@ -103,18 +105,20 @@ def add_sop_to_knowledgebase(sop_data: Dict[str, Any], chroma_client):
         sop_data['fault_type'],
         sop_data.get('description'),
         steps_json,
-        sop_data.get('version', '1.0')
+        sop_data.get('version', '1.0'),
+        sop_data.get('status', 'active')
     ))
 
     conn.commit()
     conn.close()
 
-    collection = chroma_client.get_collection(name="sop_collection")
-    collection.upsert(
-        ids=[sop_data['sop_id']],
-        documents=[sop_data['sop_name']],
-        metadatas=[{"fault_type": sop_data['fault_type']}]
-    )
+    if chroma_client:
+        collection = chroma_client.get_collection(name="sop_collection")
+        collection.upsert(
+            ids=[sop_data['sop_id']],
+            documents=[sop_data['sop_name']],
+            metadatas=[{"fault_type": sop_data['fault_type']}]
+        )
 
 
 def search_sop_by_vector(query_text: str, chroma_client, top_k: int = 3) -> List[str]:

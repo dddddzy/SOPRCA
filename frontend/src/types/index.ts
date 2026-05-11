@@ -2,11 +2,15 @@
 export interface DiagnosisStep {
   id: string
   timestamp: string
-  agent: 'action_agent' | 'main_agent' | 'tool_executor' | 'code_agent' | 'judge_agent' | 'ob_agent'
+  agent: 'action_agent' | 'main_agent' | 'tool_executor' | 'code_agent' | 'judge_agent' | 'ob_agent' | 'match_sop' | 'match_observation' | 'generate_sop' | 'generate_report'
   action: string
   status: 'running' | 'done' | 'error' | 'pending'
   content: string
   duration?: number
+  // 详细输入输出
+  input?: Record<string, any>
+  output?: Record<string, any>
+  reasoning?: string  // LLM思考过程
 }
 
 export interface RCAReport {
@@ -17,6 +21,28 @@ export interface RCAReport {
   faultType: string
   faultLocation: string
   suggestions: string[]
+  // 扩展字段
+  matchedSopName?: string
+  matchedSopSteps?: number
+  diagnosisPath?: string[]
+  apl?: number
+  similarFaults?: Array<{
+    id: string
+    similarity: number
+    rootCause: string
+    description: string
+    hasReferenceValue: boolean
+  }>
+  obAgentClues?: {
+    faultType: string
+    faultLocation: string
+    keyClues: string[]
+    excludedReasons: string[]
+  }
+  judgeAgentReasoning?: string
+  isRootCauseFound?: boolean
+  terminationReason?: string
+  faultId?: string
 }
 
 export interface DiagnosisState {
@@ -83,15 +109,25 @@ export interface ModelConfig {
   temperature: number
 }
 
-export interface ServerConfig {
-  host: string
-  port: number
-  langgraphUrl: string
+export interface ClusterConfig {
+  kubeconfig: string
+  context: string
+  server: string
+  env: 'dev' | 'prod'
+  mockMode: boolean
+}
+
+export interface AntiLoopConfig {
+  maxCycleLimit: number
+  maxNoGainTimes: number
+  maxRepeatActionTimes: number
+  globalTimeout: number
 }
 
 export interface AppSettings {
   theme: 'dark' | 'light' | 'auto'
   language: string
   model: ModelConfig
-  server: ServerConfig
+  cluster: ClusterConfig
+  antiLoop: AntiLoopConfig
 }
